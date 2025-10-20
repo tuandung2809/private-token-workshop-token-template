@@ -14,12 +14,12 @@ TODO:
 
 ====================================================================================================================  
 */
-program token.aleo {
+program marintd2809.aleo {
     mapping balances: address => u64;  // On-chain mapping between user addresses and public token balances
 
     record Token {
-        owner: address,  // The token owner
-        amount: u64,     // The token amount
+        owner: aleo1ngtee7pwkun0cpyyclcnlhmnettp973td75rj75nyttdj4uj25xsdz5luf,  // The token owner
+        amount: 1000000000,     // The token amount
     }
 
     @noupgrade
