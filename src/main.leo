@@ -14,7 +14,7 @@ TODO:
 
 ====================================================================================================================  
 */
-program token.aleo {
+program dungloyeuthuyngan.aleo {
     mapping balances: address => u64;  // On-chain mapping between user addresses and public token balances
 
     record Token {
@@ -54,6 +54,7 @@ program token.aleo {
         let address_check : Future = workshop_ofac.aleo/address_check(recipient);
 
         // TODO: Fill in here
+        return mint_public_onchain(recipient, amount, address_check);
     }
 
     async function mint_public_onchain(
@@ -64,6 +65,8 @@ program token.aleo {
         address_check.await();
 
         // TODO: Fill in here
+        let current_amount: u64 = Mapping::get_or_use(balances, recipient, 0u64);
+        Mapping::set(balances, recipient, current_amount + amount);
     }
 
 
@@ -92,12 +95,21 @@ program token.aleo {
         private amount: u64
     ) -> (Token,Future) {
         // TODO: Fill in here
+        let address_check: Future = workshop_ofac.aleo/address_check(recipient);
+
+        let token: Token = Token {
+            owner: recipient,
+            amount: amount
+        };
+
+        return (token, mint_private_onchain(address_check));
 
     }
     async function mint_private_onchain(
         address_check : Future
     ){
         // TODO: Fill in here
+        address_check.await();
     }
 
 
@@ -106,9 +118,7 @@ program token.aleo {
 
     /*
     ====================================================================================================================
-    TASK 3: Transfer (Public)
-
-    This feature publicly transfers tokens between two users by deducting the transfer amount from the sender's balance
+    TASK 3: Transfer (Public)    This feature publicly transfers tokens between two users by deducting the transfer amount from the sender's balance
     in the public mapping and adding the same value to the recipient's balance
     
     TODO:
@@ -129,6 +139,10 @@ program token.aleo {
         public amount: u64
     ) -> Future {
         // TODO: Fill in here
+
+        let address_check: Future = workshop_ofac.aleo/address_check(recipient);
+        return transfer_public_onchain(self.signer, recipient, amount, address_check);
+
     }
     async function transfer_public_onchain(
         public sender: address, 
@@ -137,6 +151,10 @@ program token.aleo {
         public address_check : Future
     ) {
         // TODO: Fill in here
+
+        address_check.await();
+        let sender_amount: u64 = Mapping::get_or_use(balances, sender, 0u64);
+        Mapping::set(balances, sender, sender_amount - amount);
     }
 
 
@@ -170,12 +188,29 @@ program token.aleo {
         private amount: u64
     ) -> (Token, Token, Future) {
         // TODO: Fill in here
+
+        let address_check: Future = workshop_ofac.aleo/address_check(recipient);
+
+       let difference: u64 = sender.amount - amount;
+
+       let remaining: Token = Token {
+            owner: sender.owner,
+            amount: difference
+       };
+
+       let transferred: Token = Token {
+            owner: recipient,
+            amount: amount,
+       };
+
+       return (remaining, transferred, transfer_private_onchain(address_check));
     }
 
     async function transfer_private_onchain(
         public address_check : Future
     ){
         // TODO: Fill in here
+        address_check.await();
     }
 
 
@@ -188,9 +223,7 @@ program token.aleo {
 
     For those looking for an extra challenge, implement the following additional functions:
         - transfer_private_to_public()
-        - transfer_public_to_private()
-
-    Additionally, in practice you'll likely want to have some advanced functionality, such as allowing authorized users and programs
+        - transfer_public_to_private()    Additionally, in practice you'll likely want to have some advanced functionality, such as allowing authorized users and programs
     to manage your funds:
         - approve_public [will require an additional `allowances` mapping]
         - approve_private
