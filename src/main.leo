@@ -1,206 +1,134 @@
 import workshop_ofac.aleo;
 
-/*
-====================================================================================================================
-TASK 0: Name Your Token
+program marintd2809.aleo {
+    // Public balances
+    mapping balances: address => u64;
 
-TODO: 
-    1. Choose what your token program will be named! This should be longer than 10 characters to avoid additional
-       network fees and not conflict with any existing program on the network
-        - ex) `dogecoin_token.aleo`
-    2. Change the name of the program below
-        - ex) `program dogecoin_token.aleo {`
-    3. Change the "program" field in the program.json file to match the name of your new program
-
-====================================================================================================================  
-*/
-program token.aleo {
-    mapping balances: address => u64;  // On-chain mapping between user addresses and public token balances
-
+    // Private token record schema
     record Token {
-        owner: address,  // The token owner
-        amount: u64,     // The token amount
+        owner: address,
+        amount: u64,
     }
 
     @noupgrade
     async constructor() {}
 
-
-
-
-
-    /*
-    ====================================================================================================================
-    TASK 1: Mint (Public)
-
-    This feature mints new tokens by updating the public mapping value of the recipient
-    
-    TODO:
-        `mint_public`:
-            1. Query the `address_check` function in `workshop_ofac.aleo` with the `recipient` field
-            2. Pass the returned Future and other appropriate fields to the `mint_public_onchain` function
-
-        `mint_public_onchain`:
-            1. Await the `address_check` Future
-            2. Set the value for `recipient` in the `balances` mapping to the current value plus `amount` 
-
-    
-    ====================================================================================================================  
-    */
+    // ----------------------------
+    // TASK 1: Mint (Public)
+    // ----------------------------
     async transition mint_public(
-        public recipient: address, 
+        public recipient: address,
         public amount: u64
     ) -> Future {
-        let address_check : Future = workshop_ofac.aleo/address_check(recipient);
-
-        // TODO: Fill in here
+        let address_check: Future = workshop_ofac.aleo/address_check(recipient);
+        return self.mint_public_onchain(recipient, amount, address_check);
     }
 
     async function mint_public_onchain(
-        public recipient: address, 
+        public recipient: address,
         public amount: u64,
-        public address_check : Future
+        public address_check: Future
     ) {
         address_check.await();
 
-        // TODO: Fill in here
+        // read old (defaults to 0 if unset)
+        let old: u64 = balances.get(recipient);
+        let new: u64 = old + amount;
+
+        balances.set(recipient, new);
     }
 
-
-
-
-
-    /*
-    ====================================================================================================================
-    TASK 2: Mint (Private)
-
-    This feature mints new tokens by initializing a new record with the specified amount of tokens for the recipient.
-    
-    TODOs: 
-        `mint_private`:
-            1. Query the `address_check` function in `workshop_ofac.aleo` with the `recipient` field
-            2. Initialize a Token record with the `recipient` as the owner and the `amount` as the amount
-            3. Return the Token record and pass the Future to the `mint_private_onchain` function
-
-        `mint_private_onchain`:  
-            1. Await the `address_check` Future
-    
-    ====================================================================================================================  
-    */
+    // ----------------------------
+    // TASK 2: Mint (Private)
+    // ----------------------------
     async transition mint_private(
-        private recipient: address, 
+        private recipient: address,
         private amount: u64
-    ) -> (Token,Future) {
-        // TODO: Fill in here
+    ) -> (Token, Future) {
+        let address_check: Future = workshop_ofac.aleo/address_check(recipient);
 
+        // produce a private Token record for recipient
+        let token: Token = Token {
+            owner: recipient,
+            amount: amount,
+        };
+
+        let f: Future = self.mint_private_onchain(address_check);
+        return (token, f);
     }
+
     async function mint_private_onchain(
-        address_check : Future
-    ){
-        // TODO: Fill in here
+        address_check: Future
+    ) {
+        address_check.await();
+        // no public state change here; just compliance gate
     }
 
-
-
-
-
-    /*
-    ====================================================================================================================
-    TASK 3: Transfer (Public)
-
-    This feature publicly transfers tokens between two users by deducting the transfer amount from the sender's balance
-    in the public mapping and adding the same value to the recipient's balance
-    
-    TODO:
-        `transfer_public`:
-            1. Query the `address_check` function in `workshop_ofac.aleo` with the `recipient` field
-            2. Pass the returned Future and other appropriate fields to the `transfer_public_onchain` function
-                - For the `sender` field, you can use `self.signer` to specify the address that initialized the function call
-
-        `transfer_public_onchain`:
-            1. Await the `address_check` Future
-            2. Set the value for `sender` in the `balances` mapping to the sender's current value minus `amount` 
-            3. Set the value for `recipient` in the `balances` mapping to the recipient's current value plus `amount` 
-    
-    ====================================================================================================================  
-    */
+    // ----------------------------
+    // TASK 3: Transfer (Public)
+    // ----------------------------
     async transition transfer_public(
-        public recipient: address, 
+        public recipient: address,
         public amount: u64
     ) -> Future {
-        // TODO: Fill in here
+        let address_check: Future = workshop_ofac.aleo/address_check(recipient);
+        // self.signer = public sender
+        return self.transfer_public_onchain(self.signer, recipient, amount, address_check);
     }
+
     async function transfer_public_onchain(
-        public sender: address, 
-        public recipient: address, 
+        public sender: address,
+        public recipient: address,
         public amount: u64,
-        public address_check : Future
+        public address_check: Future
     ) {
-        // TODO: Fill in here
+        address_check.await();
+
+        // debit sender
+        let sender_old: u64 = balances.get(sender);
+        assert(sender_old >= amount);
+        let sender_new: u64 = sender_old - amount;
+        balances.set(sender, sender_new);
+
+        // credit recipient
+        let rcpt_old: u64 = balances.get(recipient);
+        let rcpt_new: u64 = rcpt_old + amount;
+        balances.set(recipient, rcpt_new);
     }
 
-
-
-
-
-    /*
-    ====================================================================================================================
-    TASK 4: Transfer (Private)
-
-    This feature privately transfers tokens between two users by consuming the sender's Token record and producing two 
-    new Token records.  The first is a Token record for the recipient with the amount sent, and the second is a new Token 
-    record for the sender with the leftover amount.
-    
-    TODO:
-        `transfer_private:
-            1. Query the `address_check` function in `workshop_ofac.aleo` with the `recipient` field
-            2. Initialize a Token record with the `recipient` as the owner and the `amount` as the amount
-            3. Initialize a Token record with the `sender` as the owner and the remaining balance as the amount
-            4. Return both Token records and pass the Future to the `mint_private_onchain` function
-
-        `transfer_private_onchain`:
-            1. Await the `address_check` Future
-    
-    
-    ====================================================================================================================  
-    */
+    // ----------------------------
+    // TASK 4: Transfer (Private)
+    // ----------------------------
     async transition transfer_private(
-        private sender: Token, 
-        private recipient: address, 
+        private sender: Token,
+        private recipient: address,
         private amount: u64
     ) -> (Token, Token, Future) {
-        // TODO: Fill in here
+        // consume sender record and split into (to recipient) + (change)
+        assert(sender.amount >= amount);
+
+        let address_check: Future = workshop_ofac.aleo/address_check(recipient);
+
+        let to_recipient: Token = Token {
+            owner: recipient,
+            amount: amount,
+        };
+
+        let change: Token = Token {
+            owner: sender.owner,
+            amount: sender.amount - amount,
+        };
+
+        let f: Future = self.transfer_private_onchain(address_check);
+        return (to_recipient, change, f);
     }
 
     async function transfer_private_onchain(
-        public address_check : Future
-    ){
-        // TODO: Fill in here
+        public address_check: Future
+    ) {
+        address_check.await();
+        // no public state change; just compliance gate for the private flow
     }
 
-
-
-
-
-    /*
-    ====================================================================================================================
-    BONUS TASKS:
-
-    For those looking for an extra challenge, implement the following additional functions:
-        - transfer_private_to_public()
-        - transfer_public_to_private()
-
-    Additionally, in practice you'll likely want to have some advanced functionality, such as allowing authorized users and programs
-    to manage your funds:
-        - approve_public [will require an additional `allowances` mapping]
-        - approve_private
-        - transfer_from() [Aleo only supports public transfer_from due to how records are implemented]
-        - burn_public()
-        - burn_private()
-
-
-    Don't forget to include OFAC compliance checks!
-    
-    ====================================================================================================================  
-    */
+    // (Bonus tasks not implemented)
 }
